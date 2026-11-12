@@ -66,6 +66,13 @@ textarea { resize: vertical; }
 .write-panel a { color: var(--ink); }
 .write-panel p, .load-status { color: var(--muted); }
 .post-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.write-form small { color: var(--muted); }
+.write-form a { text-underline-offset: .2em; }
+.photo-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .6rem; margin-block: .8rem; }
+.photo-list:empty { display: none; }
+.photo-list img { width: 100%; height: auto; display: block; border-radius: .55rem; }
+article { min-width: 0; }
+article h3 { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -86,24 +93,28 @@ textarea { resize: vertical; }
 <h2 id="archive-title">글 목록</h2>
 <details class="write-panel" id="writer">
   <summary>글쓰기</summary>
-  <form class="write-form" id="write-form">
+  <form class="write-form" id="write-form" method="post">
     <label>제목 <input name="title" maxlength="120" required></label>
     <label>카테고리 <select name="category"><option>일상</option><option>창작물</option></select></label>
     <label>본문 <textarea name="body" rows="8" maxlength="20000" required></textarea></label>
+    <label>사진 <input name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+      <small>JPG, PNG, WebP, GIF를 최대 5장, 한 장당 8MB까지 올릴 수 있어요. 사진은 게시할 때 업로드돼요.</small>
+    </label>
+    <label>GitHub 게시용 토큰 <input name="token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      <small>게시할 때만 필요해요. 토큰은 브라우저에 저장하지 않아요.</small>
+    </label>
+    <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">GitHub에서 게시용 토큰 만들기</a>
+    <small>저장소는 ttabu0430.github.io 하나만 선택하고, Contents 권한은 Read and write로 설정하세요.</small>
     <div class="write-actions">
       <button type="button" id="preview-button">미리보기</button>
-      <button type="submit">게시용 글 복사</button>
+      <button type="submit" id="publish-button" disabled>글과 사진 게시</button>
     </div>
   </form>
   <p id="draft-status" role="status">초안은 이 브라우저에 자동 저장돼요.</p>
   <div id="preview" hidden>
     <h3 id="preview-title"></h3>
     <p id="preview-body" class="post-body"></p>
-  </div>
-  <div id="publish" hidden>
-    <p>GitHub에서 파일 끝에 새 줄을 만들고 복사한 내용을 붙여넣은 뒤 <strong>Commit changes</strong>를 눌러요. 붙여넣기 전에 게시할 내용인지 확인하세요.</p>
-    <label>게시용 글 <textarea id="publish-text" rows="2" readonly></textarea></label>
-    <a href="https://github.com/ttabu0430/ttabu0430.github.io/edit/main/posts.jsonl" target="_blank" rel="noopener">GitHub에서 게시 파일 열기</a>
+    <div id="preview-photos" class="photo-list"></div>
   </div>
 </details>
 <p class="load-status" id="post-load-status" role="status" hidden>게시된 글을 불러오지 못했어요. 잠시 후 새로고침해 주세요.</p>
@@ -187,8 +198,15 @@ const form = document.querySelector('#write-form');
 const draftStatus = document.querySelector('#draft-status');
 const draftKey = 'taste-note-draft';
 const preview = document.querySelector('#preview');
-const publish = document.querySelector('#publish');
-const publishText = document.querySelector('#publish-text');
+const previewPhotos = document.querySelector('#preview-photos');
+const status = document.querySelector('#post-load-status');
+const postEndpoint = 'https://api.github.com/repos/ttabu0430/ttabu0430.github.io';
+const photoExtensions = new Map([
+  ['image/jpeg', 'jpg'], ['image/png', 'png'], ['image/webp', 'webp'], ['image/gif', 'gif']
+]);
+const photoPath = /^photos\/[a-f0-9-]{36}-[1-5]\.(?:jpg|png|webp|gif)$/;
+let previewUrls = [];
+let publishing = false;
 const categories = ['일상', '창작물'];
 
 function readDraft() {
@@ -213,11 +231,15 @@ try {
 
 function clearPreview() {
   preview.hidden = true;
-  publish.hidden = true;
+  for (const url of previewUrls) URL.revokeObjectURL(url);
+  previewUrls = [];
+  previewPhotos.replaceChildren();
 }
 
-form.addEventListener('input', () => {
+form.addEventListener('input', event => {
+  if (event.target.name === 'token' || publishing) return;
   clearPreview();
+  if (event.target.name === 'photos') return;
   try {
     localStorage.setItem(draftKey, JSON.stringify(readDraft()));
     draftStatus.textContent = '이 브라우저에 초안을 저장했어요.';
@@ -234,30 +256,140 @@ function validatedDraft() {
   return null;
 }
 
+function selectedPhotos() {
+  const photos = [...form.elements.namedItem('photos').files];
+  if (photos.length > 5 || photos.some(file => !photoExtensions.has(file.type) || !file.size || file.size > 8 * 1024 * 1024)) {
+    throw new Error('JPG, PNG, WebP, GIF 사진을 최대 5장, 한 장당 8MB까지 선택해 주세요.');
+  }
+  return photos;
+}
+
+function appendPhoto(container, src, index) {
+  const image = document.createElement('img');
+  image.src = src;
+  image.alt = '첨부 사진 ' + (index + 1);
+  image.loading = 'lazy';
+  container.append(image);
+}
+
 document.querySelector('#preview-button').addEventListener('click', () => {
   const draft = validatedDraft();
   if (!draft) return;
+  clearPreview();
+  try {
+    previewUrls = selectedPhotos().map(file => URL.createObjectURL(file));
+    previewUrls.forEach((url, index) => appendPhoto(previewPhotos, url, index));
+  } catch (error) {
+    draftStatus.textContent = error.message;
+    return;
+  }
   document.querySelector('#preview-title').textContent = draft.title;
   document.querySelector('#preview-body').textContent = draft.body;
   preview.hidden = false;
 });
 
+async function github(path, token, method = 'GET', data) {
+  const response = await fetch(postEndpoint + path, {
+    method,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: data === undefined ? undefined : JSON.stringify(data),
+    cache: 'no-store',
+    redirect: 'error'
+  });
+  if (response.status === 401 || response.status === 403 || response.status === 404) {
+    throw new Error('GitHub에서 게시 권한을 확인할 수 없어요. 토큰과 저장소의 Contents 권한을 확인해 주세요.');
+  }
+  if (response.status === 409 || response.status === 422) {
+    throw new Error('GitHub에서 변경을 적용할 수 없어요. 저장소가 동시에 바뀌었다면 잠시 후 다시 게시해 주세요.');
+  }
+  if (!response.ok) throw new Error('GitHub 게시에 실패했어요. 잠시 후 다시 시도해 주세요.');
+  return response.json();
+}
+
+function imageBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('사진 파일을 읽을 수 없어요.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function publishPost(draft, photos, token) {
+  const ref = await github('/git/ref/heads/main', token);
+  const parent = ref.object.sha;
+  const [head, source] = await Promise.all([
+    github('/git/commits/' + parent, token),
+    github('/contents/posts.jsonl?ref=' + parent, token)
+  ]);
+  const blob = source.encoding === 'base64'
+    ? source
+    : await github('/git/blobs/' + source.sha, token);
+  const bytes = Uint8Array.from(atob(blob.content.replace(/\s/g, '')), character => character.charCodeAt(0));
+  const existing = new TextDecoder().decode(bytes).trimEnd();
+  const id = crypto.randomUUID();
+  const entries = [];
+  const paths = [];
+  for (const [index, file] of photos.entries()) {
+    const path = 'photos/' + id + '-' + (index + 1) + '.' + photoExtensions.get(file.type);
+    const image = await github('/git/blobs', token, 'POST', { content: await imageBase64(file), encoding: 'base64' });
+    paths.push(path);
+    entries.push({ path, mode: '100644', type: 'blob', sha: image.sha });
+  }
+  const post = { ...draft, photos: paths };
+  const content = (existing ? existing + '\n' : '') + JSON.stringify(post) + '\n';
+  entries.push({ path: 'posts.jsonl', mode: '100644', type: 'blob', content });
+  const tree = await github('/git/trees', token, 'POST', { base_tree: head.tree.sha, tree: entries });
+  const commit = await github('/git/commits', token, 'POST', {
+    message: 'Publish a blog post',
+    tree: tree.sha,
+    parents: [parent]
+  });
+  await github('/git/refs/heads/main', token, 'PATCH', { sha: commit.sha, force: false });
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
+  if (publishing) return;
   const draft = validatedDraft();
   if (!draft) return;
-  const line = JSON.stringify(draft);
-  publishText.value = line;
-  publish.hidden = false;
+  const tokenField = form.elements.namedItem('token');
+  const token = tokenField.value.trim();
+  if (!token.startsWith('github_pat_')) {
+    draftStatus.textContent = '게시하려면 GitHub에서 만든 세분화된 개인 액세스 토큰을 입력해 주세요.';
+    tokenField.focus();
+    return;
+  }
+  let photos;
   try {
-    await navigator.clipboard.writeText(line);
-    draftStatus.textContent = '게시용 글을 복사했어요.';
-  } catch {
-    publishText.focus();
-    publishText.select();
-    draftStatus.textContent = '선택된 게시용 글을 직접 복사해 주세요.';
+    photos = selectedPhotos();
+  } catch (error) {
+    draftStatus.textContent = error.message;
+    return;
+  }
+  publishing = true;
+  const controls = [...form.querySelectorAll('input, select, textarea, button')];
+  for (const control of controls) control.disabled = true;
+  draftStatus.textContent = '글과 사진을 게시하고 있어요.';
+  try {
+    await publishPost(draft, photos, token);
+    form.reset();
+    clearPreview();
+    try { localStorage.removeItem(draftKey); } catch {}
+    draftStatus.textContent = 'GitHub에 저장했어요. Pages 배포가 끝나면 공개 글 목록에 표시돼요.';
+  } catch (error) {
+    draftStatus.textContent = error instanceof TypeError ? '네트워크 연결을 확인한 뒤 다시 시도해 주세요.' : error.message;
+  } finally {
+    tokenField.value = '';
+    for (const control of controls) control.disabled = false;
+    publishing = false;
   }
 });
+document.querySelector('#publish-button').disabled = false;
 
 function renderPost(post) {
   const article = document.createElement('article');
@@ -274,6 +406,13 @@ function renderPost(post) {
   body.className = 'post-body';
   body.textContent = post.body;
   details.append(summary, body);
+  const images = document.createElement('div');
+  images.className = 'photo-list';
+  if (Array.isArray(post.photos)) {
+    post.photos.filter(path => typeof path === 'string' && photoPath.test(path)).slice(0, 5)
+      .forEach((path, index) => appendPhoto(images, './' + path, index));
+  }
+  details.append(images);
   article.append(meta, details);
   return article;
 }
@@ -301,7 +440,6 @@ async function loadPosts() {
     postList.prepend(...posts.reverse());
     filterPosts();
     if (invalid) {
-      const status = document.querySelector('#post-load-status');
       status.textContent = '형식이 맞지 않아 표시하지 못한 글이 있어요.';
       status.hidden = false;
     }
