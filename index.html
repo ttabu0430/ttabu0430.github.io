@@ -56,6 +56,16 @@ summary h3 { display: inline; font-size: 1.16rem; }
 details p { margin: .75rem 0 0; color: var(--muted); }
 .empty-gallery { margin: 1rem 0 0; padding: 1.2rem; color: var(--muted); border: 1px solid var(--line); border-radius: .85rem; }
 footer { border-top: 1px solid var(--line); padding: 1rem 0 2rem; color: var(--muted); }
+.write-panel { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: .85rem; background: var(--card); }
+.write-panel summary { width: fit-content; font-weight: 700; }
+.write-form { display: grid; gap: .85rem; margin-top: 1rem; }
+.write-form label { display: grid; gap: .25rem; }
+.write-form input, .write-form select, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: .55rem; padding: .5rem .7rem; }
+textarea { resize: vertical; }
+.write-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.write-panel a { color: var(--ink); }
+.write-panel p, .load-status { color: var(--muted); }
+.post-body { white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -74,6 +84,29 @@ footer { border-top: 1px solid var(--line); padding: 1rem 0 2rem; color: var(--m
 </section>
 <section class="content" id="archive" aria-labelledby="archive-title">
 <h2 id="archive-title">글 목록</h2>
+<details class="write-panel" id="writer">
+  <summary>글쓰기</summary>
+  <form class="write-form" id="write-form">
+    <label>제목 <input name="title" maxlength="120" required></label>
+    <label>카테고리 <select name="category"><option>일상</option><option>창작물</option></select></label>
+    <label>본문 <textarea name="body" rows="8" maxlength="20000" required></textarea></label>
+    <div class="write-actions">
+      <button type="button" id="preview-button">미리보기</button>
+      <button type="submit">게시용 글 복사</button>
+    </div>
+  </form>
+  <p id="draft-status" role="status">초안은 이 브라우저에 자동 저장돼요.</p>
+  <div id="preview" hidden>
+    <h3 id="preview-title"></h3>
+    <p id="preview-body" class="post-body"></p>
+  </div>
+  <div id="publish" hidden>
+    <p>GitHub에서 파일 끝에 새 줄을 만들고 복사한 내용을 붙여넣은 뒤 <strong>Commit changes</strong>를 눌러요. 붙여넣기 전에 게시할 내용인지 확인하세요.</p>
+    <label>게시용 글 <textarea id="publish-text" rows="2" readonly></textarea></label>
+    <a href="https://github.com/ttabu0430/ttabu0430.github.io/edit/main/posts.jsonl" target="_blank" rel="noopener">GitHub에서 게시 파일 열기</a>
+  </div>
+</details>
+<p class="load-status" id="post-load-status" role="status" hidden>게시된 글을 불러오지 못했어요. 잠시 후 새로고침해 주세요.</p>
 <div class="toolbar" id="tools" hidden>
 <div class="filters" role="group" aria-label="카테고리">
 <button type="button" data-filter="" aria-pressed="true">전체</button>
@@ -111,12 +144,13 @@ footer { border-top: 1px solid var(--line); padding: 1rem 0 2rem; color: var(--m
 const toolbar = document.querySelector('#tools');
 const buttons = [...toolbar.querySelectorAll('[data-filter]')];
 const search = document.querySelector('#search');
-const articles = [...document.querySelectorAll('article')];
+const postList = document.querySelector('.posts');
 const empty = document.querySelector('#empty');
 let category = '';
 
 function filterPosts() {
   const query = search.value.trim().normalize().toLocaleLowerCase('ko');
+  const articles = [...postList.querySelectorAll('article')];
   for (const article of articles) {
     const matchesCategory = !category || article.dataset.category === category;
     const matchesQuery = article.textContent.normalize().toLocaleLowerCase('ko').includes(query);
@@ -148,6 +182,134 @@ function updateCurrentSection() {
 
 window.addEventListener('hashchange', updateCurrentSection);
 updateCurrentSection();
+
+const form = document.querySelector('#write-form');
+const draftStatus = document.querySelector('#draft-status');
+const draftKey = 'taste-note-draft';
+const preview = document.querySelector('#preview');
+const publish = document.querySelector('#publish');
+const publishText = document.querySelector('#publish-text');
+const categories = ['일상', '창작물'];
+
+function readDraft() {
+  const fields = new FormData(form);
+  return {
+    title: fields.get('title').trim(),
+    category: fields.get('category'),
+    body: fields.get('body').trim()
+  };
+}
+
+try {
+  const saved = JSON.parse(localStorage.getItem(draftKey));
+  if (saved) {
+    form.elements.namedItem('title').value = saved.title || '';
+    form.elements.namedItem('body').value = saved.body || '';
+    if (categories.includes(saved.category)) form.elements.namedItem('category').value = saved.category;
+  }
+} catch {
+  draftStatus.textContent = '저장된 초안을 읽을 수 없어요.';
+}
+
+function clearPreview() {
+  preview.hidden = true;
+  publish.hidden = true;
+}
+
+form.addEventListener('input', () => {
+  clearPreview();
+  try {
+    localStorage.setItem(draftKey, JSON.stringify(readDraft()));
+    draftStatus.textContent = '이 브라우저에 초안을 저장했어요.';
+  } catch {
+    draftStatus.textContent = '이 브라우저에서 초안을 자동 저장할 수 없어요.';
+  }
+});
+
+function validatedDraft() {
+  if (!form.reportValidity()) return null;
+  const draft = readDraft();
+  if (draft.title && draft.body && categories.includes(draft.category)) return draft;
+  draftStatus.textContent = '제목과 본문을 입력해 주세요.';
+  return null;
+}
+
+document.querySelector('#preview-button').addEventListener('click', () => {
+  const draft = validatedDraft();
+  if (!draft) return;
+  document.querySelector('#preview-title').textContent = draft.title;
+  document.querySelector('#preview-body').textContent = draft.body;
+  preview.hidden = false;
+});
+
+form.addEventListener('submit', async event => {
+  event.preventDefault();
+  const draft = validatedDraft();
+  if (!draft) return;
+  const line = JSON.stringify(draft);
+  publishText.value = line;
+  publish.hidden = false;
+  try {
+    await navigator.clipboard.writeText(line);
+    draftStatus.textContent = '게시용 글을 복사했어요.';
+  } catch {
+    publishText.focus();
+    publishText.select();
+    draftStatus.textContent = '선택된 게시용 글을 직접 복사해 주세요.';
+  }
+});
+
+function renderPost(post) {
+  const article = document.createElement('article');
+  article.dataset.category = post.category;
+  const meta = document.createElement('p');
+  meta.className = 'meta';
+  meta.textContent = post.category;
+  const details = document.createElement('details');
+  const summary = document.createElement('summary');
+  const title = document.createElement('h3');
+  title.textContent = post.title;
+  summary.append(title);
+  const body = document.createElement('p');
+  body.className = 'post-body';
+  body.textContent = post.body;
+  details.append(summary, body);
+  article.append(meta, details);
+  return article;
+}
+
+async function loadPosts() {
+  if (location.protocol === 'file:') return;
+  try {
+    const response = await fetch('./posts.jsonl', { cache: 'no-cache' });
+    if (!response.ok) throw new Error('Could not load posts');
+    const lines = (await response.text()).split(/\r?\n/).filter(line => line.trim());
+    const posts = [];
+    let invalid = false;
+    for (const line of lines) {
+      try {
+        const post = JSON.parse(line);
+        if (!post || typeof post.title !== 'string' || typeof post.body !== 'string' || !categories.includes(post.category)) {
+          invalid = true;
+          continue;
+        }
+        posts.push(renderPost(post));
+      } catch {
+        invalid = true;
+      }
+    }
+    postList.prepend(...posts.reverse());
+    filterPosts();
+    if (invalid) {
+      const status = document.querySelector('#post-load-status');
+      status.textContent = '형식이 맞지 않아 표시하지 못한 글이 있어요.';
+      status.hidden = false;
+    }
+  } catch {
+    document.querySelector('#post-load-status').hidden = false;
+  }
+}
+loadPosts();
 </script>
 </body>
 </html>
