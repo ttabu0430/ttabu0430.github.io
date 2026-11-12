@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="게임, 애니메이션, 개인 창작물을 기록하는 취미 블로그">
+<title>취향 노트</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #141414;
+  --card: #1d1d1d;
+  --ink: #f5f5f5;
+  --muted: #b7b7b7;
+  --accent: #f0f0f0;
+  --chip: #303030;
+  --line: #3a3a3a;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.65 system-ui, sans-serif; }
+header, main, footer { width: min(100% - 2rem, 68rem); margin-inline: auto; }
+header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding-block: 1rem; }
+header a { color: var(--ink); text-decoration: none; }
+.brand { font-weight: 800; letter-spacing: -.04em; }
+nav { display: flex; flex-wrap: wrap; gap: .25rem; }
+nav a { padding: .45rem .75rem; border-radius: 999px; font-size: .92rem; font-weight: 650; }
+nav a:hover, nav a[aria-current] { background: var(--chip); color: var(--accent); }
+.hero {
+  display: grid;
+  align-content: center;
+  min-height: clamp(13rem, 32vw, 22rem);
+  padding: clamp(1.4rem, 6vw, 4rem);
+  border-radius: 1rem;
+  border: 1px solid var(--line);
+  background: #202020;
+  color: #fff;
+}
+h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -.04em; }
+h1 { font-size: clamp(2.8rem, 8vw, 5.5rem); }
+.hero p { margin: .6rem 0 0; color: var(--muted); }
+.content { margin-block: clamp(2.4rem, 5vw, 4rem); scroll-margin-block-start: 1rem; }
+h2 { font-size: clamp(1.55rem, 4vw, 2rem); }
+.toolbar { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; margin: 1rem 0; }
+.filters { display: flex; gap: .4rem; flex-wrap: wrap; }
+button, input { font: inherit; color: var(--ink); border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: .4rem .8rem; }
+input { width: min(12rem, 60vw); }
+button, summary { cursor: pointer; }
+button[aria-pressed=true] { background: var(--chip); border-color: var(--accent); color: var(--accent); font-weight: 750; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.posts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; align-items: start; margin-top: 1rem; }
+article { background: var(--card); border: 1px solid var(--line); border-radius: .85rem; overflow: hidden; }
+article { padding: 1.2rem; }
+.meta { margin: 0 0 .75rem; color: var(--muted); font-size: .83rem; font-weight: 650; }
+summary h3 { display: inline; font-size: 1.16rem; }
+details p { margin: .75rem 0 0; color: var(--muted); }
+.empty-gallery { margin: 1rem 0 0; padding: 1.2rem; color: var(--muted); border: 1px solid var(--line); border-radius: .85rem; }
+footer { border-top: 1px solid var(--line); padding: 1rem 0 2rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<header id="home">
+  <a class="brand" href="#home">취향 노트</a>
+  <nav aria-label="상단 메뉴">
+    <a href="#home" aria-current="location">홈</a>
+    <a href="#archive">글 목록</a>
+    <a href="#gallery">갤러리</a>
+  </nav>
+</header>
+<main>
+<section class="hero">
+<h1>취향 노트</h1>
+<p>플레이한 게임, 기억에 남은 애니메이션, 그리고 직접 만든 것들.</p>
+</section>
+<section class="content" id="archive" aria-labelledby="archive-title">
+<h2 id="archive-title">글 목록</h2>
+<div class="toolbar" id="tools" hidden>
+<div class="filters" role="group" aria-label="카테고리">
+<button type="button" data-filter="" aria-pressed="true">전체</button>
+<button type="button" data-filter="일상" aria-pressed="false">일상</button>
+<button type="button" data-filter="창작물" aria-pressed="false">창작물</button>
+</div>
+<label>검색 <input type="search" id="search" placeholder="제목, 본문, 태그"></label>
+</div>
+<div class="posts">
+<article data-category="일상" id="game-note">
+<p class="meta">일상 · #게임 · #플레이기록 · 예시 글</p>
+<details><summary><h3>게임을 끝내고도 떠오르는 장면</h3></summary>
+<p>플레이를 마친 뒤 가장 먼저 떠오르는 장면을 적어두는 자리예요. 그때 어떤 선택을 했는지, 어떤 음악이 흘렀는지, 시간이 지나도 생각나는 이유는 무엇인지 기록해 보세요.</p></details>
+</article>
+<article data-category="일상" id="anime-note">
+<p class="meta">일상 · #애니메이션 · #감상노트 · 예시 글</p>
+<details><summary><h3>엔딩이 끝난 뒤 남은 여운</h3></summary>
+<p>한 편을 다 보고 오래 기억에 남은 색감이나 연출을 모아두는 자리예요. 줄거리를 다시 쓰기보다 마음에 남은 장면 하나에서 감상을 시작해 보세요.</p></details>
+</article>
+<article data-category="창작물" id="creation-note">
+<p class="meta">창작물 · #작업일지 · 예시 글</p>
+<details><summary><h3>캐릭터를 그리기 전 첫 스케치</h3></summary>
+<p>첫 스케치와 함께 작업의 출발점을 남기는 자리예요. 어떤 분위기를 생각했는지, 무엇을 바꿨는지, 다음에 이어서 할 일을 적어 보세요.</p></details>
+</article>
+</div>
+<p id="empty" role="status" hidden>조건에 맞는 글이 없어요.</p>
+</section>
+<section class="content" id="gallery" aria-labelledby="gallery-title">
+<h2 id="gallery-title">갤러리</h2>
+<p class="empty-gallery">아직 등록된 작품이 없어요.</p>
+</section>
+</main>
+<footer>취향 노트</footer>
+<script>
+const toolbar = document.querySelector('#tools');
+const buttons = [...toolbar.querySelectorAll('[data-filter]')];
+const search = document.querySelector('#search');
+const articles = [...document.querySelectorAll('article')];
+const empty = document.querySelector('#empty');
+let category = '';
+
+function filterPosts() {
+  const query = search.value.trim().normalize().toLocaleLowerCase('ko');
+  for (const article of articles) {
+    const matchesCategory = !category || article.dataset.category === category;
+    const matchesQuery = article.textContent.normalize().toLocaleLowerCase('ko').includes(query);
+    article.hidden = !(matchesCategory && matchesQuery);
+  }
+  empty.hidden = articles.some(article => !article.hidden);
+}
+
+for (const button of buttons) {
+  button.addEventListener('click', () => {
+    category = button.dataset.filter;
+    for (const item of buttons) {
+      item.setAttribute('aria-pressed', String(item === button));
+    }
+    filterPosts();
+  });
+}
+search.addEventListener('input', filterPosts);
+toolbar.hidden = false;
+
+const navigation = [...document.querySelectorAll('nav a')];
+function updateCurrentSection() {
+  const section = navigation.find(link => link.hash === location.hash) || navigation[0];
+  for (const link of navigation) {
+    if (link === section) link.setAttribute('aria-current', 'location');
+    else link.removeAttribute('aria-current');
+  }
+}
+
+window.addEventListener('hashchange', updateCurrentSection);
+updateCurrentSection();
+</script>
+</body>
+</html>
